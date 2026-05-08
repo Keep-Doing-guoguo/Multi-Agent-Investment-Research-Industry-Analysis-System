@@ -372,3 +372,58 @@ POST /api/research/follow-up
 - 风险审查设计
 
 因此它既适合作为产品需求分析，也适合作为后续工程实施蓝图。
+
+---
+
+## 当前开发状态
+
+当前仓库已实现第一版后端 MVP：
+
+- SQLite 数据层
+- session memory
+- run state / run events
+- Pydantic Agent 输出模型
+- mock research tools
+- OpenAI-compatible LLM client，默认 Qwen
+- 5 个 Agent
+- 手写 WorkflowRunner
+- FastAPI 接口
+
+初始化数据库：
+
+```bash
+python3 -m app.db.init_db
+```
+
+配置 LLM：
+
+```bash
+cp .env.example .env
+```
+
+填写：
+
+```text
+LLM_PROVIDER=qwen
+QWEN_API_KEY=你的 Qwen / DashScope API Key
+QWEN_MODEL=qwen-plus
+QWEN_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+```
+
+运行完整 workflow demo：
+
+```bash
+python3 -m app.workflow.run_workflow_demo
+```
+
+启动 API：
+
+```bash
+uvicorn app.main:app --reload
+```
+
+运行测试：
+
+```bash
+python3 -m unittest discover -s tests
+```

@@ -1,0 +1,11 @@
+[project]
+name = "multi-agent-investment-research"
+version = "0.1.0"
+description = "Multi-agent investment research and industry analysis system."
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.115,<1.0",
+  "openai>=2.0,<3.0",
+  "pydantic>=2.0,<3.0",
+  "uvicorn>=0.33,<1.0",
+]
