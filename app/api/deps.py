@@ -10,7 +10,7 @@ from app.agents.triage_agent import TriageAgent
 from app.llm.client import OpenAILLMClient
 from app.memory.manager import MemoryManager
 from app.services.research_service import ResearchService
-from app.tools.mock_research_tools import build_default_tool_registry
+from app.tools.china_research_tools import build_china_tool_registry
 from app.workflow.runner import ResearchWorkflowRunner, WorkflowConfig
 
 
@@ -18,7 +18,7 @@ from app.workflow.runner import ResearchWorkflowRunner, WorkflowConfig
 def get_research_service() -> ResearchService:
     memory = MemoryManager()
     memory.init_db()
-    tools = build_default_tool_registry()
+    tools = build_china_tool_registry()
     llm = OpenAILLMClient()
     runner = ResearchWorkflowRunner(
         memory=memory,

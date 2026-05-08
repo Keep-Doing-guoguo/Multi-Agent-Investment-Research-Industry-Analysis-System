@@ -384,6 +384,7 @@ POST /api/research/follow-up
 - run state / run events
 - Pydantic Agent 输出模型
 - mock research tools
+- 国内真实 research tools：东方财富、巨潮资讯网、国家统计局
 - OpenAI-compatible LLM client，默认 Qwen
 - 5 个 Agent
 - 手写 WorkflowRunner
@@ -408,6 +409,9 @@ LLM_PROVIDER=qwen
 QWEN_API_KEY=你的 Qwen / DashScope API Key
 QWEN_MODEL=qwen-plus
 QWEN_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+
+# 可选：东方财富自然语言资讯检索
+EASTMONEY_APIKEY=
 ```
 
 运行完整 workflow demo：

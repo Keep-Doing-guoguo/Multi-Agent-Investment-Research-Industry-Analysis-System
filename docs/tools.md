@@ -5,6 +5,7 @@
 对应代码：
 
 - `app/tools/registry.py`
+- `app/tools/china_research_tools.py`
 - `app/tools/mock_research_tools.py`
 
 ## 设计目标
@@ -97,9 +98,36 @@ published_at
 metadata
 ```
 
-## 当前 Mock 工具
+## 当前生产工具
 
-当前提供 4 个 mock research tools：
+生产入口使用：
+
+```text
+app/tools/china_research_tools.py
+```
+
+当前 4 个工具均使用国内来源：
+
+```text
+news_search                -> 东方财富
+announcement_search        -> 巨潮资讯网
+financial_report_search    -> 巨潮资讯网、东方财富
+industry_data_search       -> 国家统计局、东方财富
+```
+
+其中 `news_search` 和部分检索路径支持可选东方财富 API key：
+
+```text
+EASTMONEY_APIKEY=
+```
+
+如果没有配置该 key，工具会跳过东方财富自然语言资讯检索，并返回结构化 warning。其他公开页面检索仍会继续尝试。
+
+## Mock 工具
+
+`app/tools/mock_research_tools.py` 仍然保留，主要用于单元测试和离线开发。
+
+它也提供 4 个 mock research tools：
 
 ```text
 news_search
@@ -108,11 +136,11 @@ financial_report_search
 industry_data_search
 ```
 
-这些工具返回确定性假数据，用于后续 Agent 和 Graph 联调。
+这些工具返回确定性假数据。
 
 ## 后续替换真实工具
 
-后续接真实数据源时，优先保持工具名称和输出结构不变：
+后续如果替换或增强真实数据源，优先保持工具名称和输出结构不变：
 
 ```text
 news_search                -> 新闻 API / 搜索服务

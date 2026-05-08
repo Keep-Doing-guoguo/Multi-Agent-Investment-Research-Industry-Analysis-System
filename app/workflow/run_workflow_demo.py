@@ -9,7 +9,7 @@ from app.agents.supervisor_agent import SupervisorAgent
 from app.agents.triage_agent import TriageAgent
 from app.llm.client import OpenAILLMClient
 from app.memory.manager import MemoryManager
-from app.tools.mock_research_tools import build_default_tool_registry
+from app.tools.china_research_tools import build_china_tool_registry
 from app.workflow.runner import ResearchWorkflowRunner, WorkflowConfig
 
 
@@ -22,7 +22,7 @@ def main() -> None:
 
     memory = MemoryManager()
     memory.init_db()
-    tools = build_default_tool_registry()
+    tools = build_china_tool_registry()
     llm = OpenAILLMClient()
 
     runner = ResearchWorkflowRunner(

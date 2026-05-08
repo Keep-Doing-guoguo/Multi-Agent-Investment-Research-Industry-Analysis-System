@@ -3,13 +3,13 @@ from __future__ import annotations
 from app.agents.triage_agent import TriageAgent
 from app.llm.client import OpenAILLMClient
 from app.memory.manager import MemoryManager
-from app.tools.mock_research_tools import build_default_tool_registry
+from app.tools.china_research_tools import build_china_tool_registry
 
 
 def main() -> None:
     memory = MemoryManager()
     memory.init_db()
-    tools = build_default_tool_registry()
+    tools = build_china_tool_registry()
     llm = OpenAILLMClient()
     agent = TriageAgent(memory=memory, llm=llm, tools=tools)
 
