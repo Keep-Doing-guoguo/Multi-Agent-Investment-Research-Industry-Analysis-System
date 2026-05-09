@@ -1,11 +1,11 @@
 # 测试说明
 
-当前测试使用 Python 标准库 `unittest`，不依赖额外测试框架。
+当前测试使用普通函数调用和 `assert`，不依赖 `unittest` 或 `pytest`。
 
 运行全部测试：
 
 ```bash
-python3 -m unittest discover -s tests
+python3 tests/run_tests.py
 ```
 
 当前覆盖范围：
