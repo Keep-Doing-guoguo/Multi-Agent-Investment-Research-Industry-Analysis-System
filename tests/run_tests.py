@@ -38,7 +38,7 @@ from app.models.agent_outputs import (
     SupervisorOutput,
     TriageOutput,
 )
-from app.services.research_service import format_sse_event
+from app.services.research_service import ResearchService, format_sse_event
 import app.tools.china_research_tools as china_tools
 from app.tools.china_research_tools import announcement_search, build_china_tool_registry
 from app.tools.mock_research_tools import build_default_tool_registry
@@ -47,6 +47,7 @@ from app.workflow.runner import (
     LoopLimitExceededError,
     ResearchWorkflowRunner,
     WorkflowConfig,
+    WorkflowResult,
 )
 
 
@@ -453,11 +454,68 @@ def test_workflow_runner_pass_retry_recollect_and_failure() -> None:
         temp_dir.cleanup()
 
 
+class FakeWorkflowRunnerForService:
+    def __init__(self, memory: MemoryManager) -> None:
+        self.memory = memory
+
+    def run(self, session_id: str, run_id: str) -> WorkflowResult:
+        self.memory.patch_run_state(run_id, {"final_report": f"final report for {run_id}"})
+        self.memory.update_run_status(run_id, "completed", "SupervisorAgent")
+        return WorkflowResult(
+            session_id=session_id,
+            run_id=run_id,
+            status="completed",
+            final_report=f"final report for {run_id}",
+            steps_executed=5,
+        )
+
+
+def test_research_service_reuses_session_memory_per_run() -> None:
+    temp_dir = tempfile.TemporaryDirectory()
+    try:
+        db_path = Path(temp_dir.name) / "test.sqlite3"
+        memory = MemoryManager(SQLiteStore(db_path=db_path), recent_turns_limit=10)
+        memory.init_db()
+        service = ResearchService(
+            memory=memory,
+            workflow_runner=FakeWorkflowRunnerForService(memory),
+        )
+
+        session = service.create_session("新能源汽车行业")
+        first_run = service.create_and_run(
+            session_id=session["session_id"],
+            query="分析价格战",
+            topic="新能源汽车行业",
+        )
+        second_run = service.create_run_for_session(
+            session_id=session["session_id"],
+            query="继续分析出口风险",
+            topic="新能源汽车行业",
+        )
+
+        turns = memory.get_recent_turns(session["session_id"], limit=10)
+        assert [turn["role"] for turn in turns] == ["user", "assistant", "user"]
+        assert turns[0]["content"] == "分析价格战"
+        assert turns[1]["metadata"]["run_id"] == first_run["run_id"]
+        assert turns[2]["content"] == "继续分析出口风险"
+        assert second_run["session_id"] == session["session_id"]
+        assert first_run["run_id"] != second_run["run_id"]
+    finally:
+        temp_dir.cleanup()
+
+
 class FakeResearchService:
-    def create_and_run(self, *, query: str, topic: str, title: str | None = None) -> dict[str, Any]:
+    def create_and_run(
+        self,
+        *,
+        query: str,
+        topic: str,
+        title: str | None = None,
+        session_id: str | None = None,
+    ) -> dict[str, Any]:
         return {
             "run_id": "run_1",
-            "session_id": "session_1",
+            "session_id": session_id or "session_1",
             "research_topic": topic,
             "status": "completed",
             "current_agent": "SupervisorAgent",
@@ -466,6 +524,46 @@ class FakeResearchService:
             "state": {"final_report": "final report"},
             "workflow": {"run_id": "run_1", "session_id": "session_1", "status": "completed", "final_report": "final report", "steps_executed": 5},
         }
+
+    def create_session(self, title: str | None = None) -> dict[str, Any]:
+        return {
+            "session_id": "session_1",
+            "title": title,
+            "status": "active",
+            "created_at": "2026-05-08T00:00:00+00:00",
+            "updated_at": "2026-05-08T00:00:00+00:00",
+        }
+
+    def get_session(self, session_id: str) -> dict[str, Any]:
+        if session_id != "session_1":
+            raise ValueError("Session not found")
+        return self.create_session("Demo")
+
+    def create_run_for_session(
+        self,
+        *,
+        session_id: str,
+        query: str,
+        topic: str | None = None,
+    ) -> dict[str, Any]:
+        if session_id != "session_1":
+            raise ValueError("Session not found")
+        return {
+            "run_id": "run_1",
+            "session_id": session_id,
+            "research_topic": topic or query,
+            "status": "pending",
+            "current_agent": None,
+            "retry_count": 0,
+            "recollect_count": 0,
+            "state": {"request": {"query": query}},
+            "workflow": None,
+        }
+
+    def execute_run(self, *, session_id: str, run_id: str):
+        if session_id != "session_1" or run_id != "run_1":
+            raise ValueError("Run not found")
+        return None
 
     def get_run(self, run_id: str) -> dict[str, Any]:
         if run_id != "run_1":
@@ -506,6 +604,15 @@ def test_api_routes_and_sse_format() -> None:
         )
         assert response.status_code == 200
         assert response.json()["run_id"] == "run_1"
+        response = client.post("/api/sessions", json={"title": "Demo"})
+        assert response.status_code == 200
+        assert response.json()["session_id"] == "session_1"
+        response = client.post(
+            "/api/sessions/session_1/messages",
+            json={"query": "继续分析出口风险", "topic": "中国新能源汽车行业"},
+        )
+        assert response.status_code == 200
+        assert response.json()["status"] == "pending"
         assert client.get("/api/research/runs/run_1").status_code == 200
         assert client.get("/api/research/runs/run_1/result").json()["final_report"] == "final report"
         assert client.get("/api/research/runs/run_1/events").json()[0]["event_type"] == "run_created"
@@ -529,6 +636,7 @@ TESTS = [
     test_llm_settings_qwen_and_openai,
     test_agents_linear_outputs,
     test_workflow_runner_pass_retry_recollect_and_failure,
+    test_research_service_reuses_session_memory_per_run,
     test_api_routes_and_sse_format,
 ]
 

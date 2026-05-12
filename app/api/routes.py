@@ -2,21 +2,68 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
 from app.api.deps import get_research_service
 from app.api.schemas import (
     CreateResearchRunRequest,
+    CreateSessionMessageRequest,
+    CreateSessionRequest,
     RunEventResponse,
     RunResponse,
     RunResultResponse,
+    SessionResponse,
 )
 from app.services.research_service import ResearchService
 from app.workflow.runner import WorkflowError
 
 
 router = APIRouter(prefix="/api/research", tags=["research"])
+sessions_router = APIRouter(prefix="/api/sessions", tags=["sessions"])
+
+
+@sessions_router.post("", response_model=SessionResponse)
+def create_session(
+    request: CreateSessionRequest,
+    service: Annotated[ResearchService, Depends(get_research_service)],
+) -> dict:
+    return service.create_session(title=request.title)
+
+
+@sessions_router.get("/{session_id}", response_model=SessionResponse)
+def get_session(
+    session_id: str,
+    service: Annotated[ResearchService, Depends(get_research_service)],
+) -> dict:
+    try:
+        return service.get_session(session_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@sessions_router.post("/{session_id}/messages", response_model=RunResponse)
+def create_session_message(
+    session_id: str,
+    request: CreateSessionMessageRequest,
+    background_tasks: BackgroundTasks,
+    service: Annotated[ResearchService, Depends(get_research_service)],
+) -> dict:
+    try:
+        payload = service.create_run_for_session(
+            session_id=session_id,
+            query=request.query,
+            topic=request.topic,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    background_tasks.add_task(
+        service.execute_run,
+        session_id=session_id,
+        run_id=payload["run_id"],
+    )
+    return payload
 
 
 @router.post("/runs", response_model=RunResponse)
@@ -26,10 +73,13 @@ def create_research_run(
 ) -> dict:
     try:
         return service.create_and_run(
+            session_id=request.session_id,
             query=request.query,
             topic=request.topic,
             title=request.title,
         )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     except WorkflowError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 

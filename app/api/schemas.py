@@ -6,9 +6,27 @@ from pydantic import BaseModel, Field
 
 
 class CreateResearchRunRequest(BaseModel):
+    session_id: str | None = None
     query: str = Field(min_length=1)
     topic: str = Field(min_length=1)
     title: str | None = None
+
+
+class CreateSessionRequest(BaseModel):
+    title: str | None = None
+
+
+class SessionResponse(BaseModel):
+    session_id: str
+    title: str | None = None
+    status: str
+    created_at: str
+    updated_at: str
+
+
+class CreateSessionMessageRequest(BaseModel):
+    query: str = Field(min_length=1)
+    topic: str | None = Field(default=None, min_length=1)
 
 
 class RunResponse(BaseModel):

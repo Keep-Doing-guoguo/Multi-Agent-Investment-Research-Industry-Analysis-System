@@ -24,13 +24,16 @@ POST /api/research/runs
 
 ```json
 {
+  "session_id": "session_123",
   "query": "帮我分析中国新能源汽车行业，重点看价格战和出口风险",
   "topic": "中国新能源汽车行业",
   "title": "新能源汽车行业分析"
 }
 ```
 
-当前实现是同步执行完整 workflow。请求返回时，run 通常已经完成或失败。
+`session_id` 可选。不传时会创建一个新 session；传入时会复用已有 session，并把本次用户消息写入该 session 的聊天记录。
+
+当前这个兼容入口仍是同步执行完整 workflow。请求返回时，run 通常已经完成或失败。
 
 响应包含：
 
@@ -44,6 +47,66 @@ retry_count
 recollect_count
 state
 workflow
+```
+
+## 创建会话
+
+```http
+POST /api/sessions
+```
+
+请求：
+
+```json
+{
+  "title": "新能源汽车行业分析"
+}
+```
+
+响应返回：
+
+```text
+session_id
+title
+status
+created_at
+updated_at
+```
+
+## 在会话中发送消息并创建 Run
+
+```http
+POST /api/sessions/{session_id}/messages
+```
+
+请求：
+
+```json
+{
+  "query": "继续分析出口风险，重点看欧洲市场",
+  "topic": "中国新能源汽车行业"
+}
+```
+
+`topic` 可选。不传时会优先使用 session title；如果 session title 也为空，则使用本次 `query` 作为研究主题。
+
+该接口会：
+
+```text
+1. 将用户消息写入 conversation_turns
+2. 基于同一个 session 创建新的 run_id
+3. 后台执行 workflow
+4. 立即返回 run 快照
+5. 后续通过 run_id 监听 SSE 或查询结果
+```
+
+推荐前端主流程：
+
+```text
+POST /api/sessions
+POST /api/sessions/{session_id}/messages
+GET  /api/research/runs/{run_id}/events/stream
+GET  /api/research/runs/{run_id}/result
 ```
 
 ## 查询任务状态
@@ -130,21 +193,14 @@ cancelled
 
 ## 当前取舍
 
-当前 API 仍是同步执行 workflow。
+`POST /api/sessions/{session_id}/messages` 已经是后台执行 workflow，适合配合 SSE 展示进度。
 
-下一步可以改成：
+`POST /api/research/runs` 保留为兼容入口，仍同步执行 workflow。
 
-```text
-POST /api/research/runs
-  -> 创建 run
-  -> 后台执行 workflow
-  -> 立即返回 run_id
-```
-
-再配合：
+核心模型是：
 
 ```text
-GET /api/research/runs/{run_id}/events
+session 负责聊天记忆
+run 负责单次执行状态
+run_events 负责 SSE 进度事件
 ```
-
-或 SSE 推送进度。当前 SSE endpoint 已经具备，后续需要把 `POST /runs` 改成后台执行，才能让前端在任务运行过程中实时看到事件。

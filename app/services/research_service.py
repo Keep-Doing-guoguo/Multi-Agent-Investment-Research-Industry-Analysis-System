@@ -25,16 +25,55 @@ class ResearchService:
         query: str,
         topic: str,
         title: str | None = None,
+        session_id: str | None = None,
     ) -> dict[str, Any]:
-        session_id = self.memory.create_session(title or topic)
+        if session_id is None:
+            session_id = self.memory.create_session(title or topic)
+        else:
+            self.memory.get_session(session_id)
         self.memory.append_turn(session_id, "user", query)
         run_id = self.memory.create_run(
             session_id=session_id,
             research_topic=topic,
             request={"query": query},
         )
-        result = self.workflow_runner.run(session_id=session_id, run_id=run_id)
+        result = self.execute_run(session_id=session_id, run_id=run_id)
         return self._build_run_payload(result.run_id, workflow_result=result)
+
+    def create_session(self, title: str | None = None) -> dict[str, Any]:
+        session_id = self.memory.create_session(title)
+        return self.memory.get_session(session_id)
+
+    def get_session(self, session_id: str) -> dict[str, Any]:
+        return self.memory.get_session(session_id)
+
+    def create_run_for_session(
+        self,
+        *,
+        session_id: str,
+        query: str,
+        topic: str | None = None,
+    ) -> dict[str, Any]:
+        session = self.memory.get_session(session_id)
+        research_topic = topic or session.get("title") or query
+        self.memory.append_turn(session_id, "user", query)
+        run_id = self.memory.create_run(
+            session_id=session_id,
+            research_topic=research_topic,
+            request={"query": query},
+        )
+        return self._build_run_payload(run_id)
+
+    def execute_run(self, *, session_id: str, run_id: str) -> WorkflowResult:
+        result = self.workflow_runner.run(session_id=session_id, run_id=run_id)
+        if result.final_report:
+            self.memory.append_turn(
+                session_id,
+                "assistant",
+                result.final_report,
+                metadata={"run_id": run_id},
+            )
+        return result
 
     def get_run(self, run_id: str) -> dict[str, Any]:
         return self._build_run_payload(run_id)
